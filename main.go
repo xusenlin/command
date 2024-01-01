@@ -11,35 +11,42 @@ import (
 const DefaultTimeout = time.Minute
 
 type Command struct {
-	name    string
-	args    []string
-	envs    []string
-	timeout time.Duration
-	ctx     context.Context
+	args   []string
+	envs   []string
+	cancel context.CancelFunc
+	Cmd    *exec.Cmd
 }
 
 func New(name string) *Command {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	cmd := exec.CommandContext(ctx, name)
+	cmd.WaitDelay = 1
 	return &Command{
-		name:    name,
-		args:    []string{},
-		envs:    []string{},
-		timeout: DefaultTimeout,
+		args:   []string{},
+		envs:   []string{},
+		cancel: cancel,
+		Cmd:    cmd,
+	}
+}
+
+func NewTimeoutCmd(name string, timeout time.Duration) *Command {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	cmd := exec.CommandContext(ctx, name)
+	cmd.WaitDelay = 1
+	return &Command{
+		args:   []string{},
+		envs:   []string{},
+		cancel: cancel,
+		Cmd:    cmd,
 	}
 }
 
 func (c *Command) run(dir string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, c.name, c.args...)
-	cmd.Dir = dir
-	cmd.Env = c.envs
-	return cmd.CombinedOutput()
-}
-
-func (c *Command) SetTimeout(timeout time.Duration) *Command {
-	c.timeout = timeout
-	return c
+	defer c.cancel()
+	c.Cmd.Args = c.args
+	c.Cmd.Dir = dir
+	c.Cmd.Env = c.envs
+	return c.Cmd.CombinedOutput()
 }
 
 func (c *Command) AddArgs(args ...string) *Command {
@@ -56,6 +63,10 @@ func (c *Command) Run() (string, error) {
 	o, err := c.run("")
 	return string(o), err
 }
+func (c *Command) String() string {
+	return c.Cmd.String()
+}
+
 func (c *Command) RunInDir(dir string) (string, error) {
 
 	if !IsDir(dir) {
