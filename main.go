@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -11,42 +12,41 @@ import (
 const DefaultTimeout = time.Minute
 
 type Command struct {
+	name   string
 	args   []string
 	envs   []string
 	cancel context.CancelFunc
-	Cmd    *exec.Cmd
+	ctx    context.Context
 }
 
 func New(name string) *Command {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
-	cmd := exec.CommandContext(ctx, name)
-	cmd.WaitDelay = 1
 	return &Command{
+		name:   name,
 		args:   []string{},
 		envs:   []string{},
 		cancel: cancel,
-		Cmd:    cmd,
+		ctx:    ctx,
 	}
 }
 
 func NewTimeoutCmd(name string, timeout time.Duration) *Command {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	cmd := exec.CommandContext(ctx, name)
-	cmd.WaitDelay = 1
 	return &Command{
+		name:   name,
 		args:   []string{},
 		envs:   []string{},
 		cancel: cancel,
-		Cmd:    cmd,
+		ctx:    ctx,
 	}
 }
 
 func (c *Command) run(dir string) ([]byte, error) {
 	defer c.cancel()
-	c.Cmd.Args = c.args
-	c.Cmd.Dir = dir
-	c.Cmd.Env = c.envs
-	return c.Cmd.CombinedOutput()
+	cmd := exec.CommandContext(c.ctx, c.name, c.args...)
+	cmd.WaitDelay = 1
+	cmd.Dir = dir
+	return cmd.CombinedOutput()
 }
 
 func (c *Command) AddArgs(args ...string) *Command {
@@ -64,7 +64,7 @@ func (c *Command) Run() (string, error) {
 	return string(o), err
 }
 func (c *Command) String() string {
-	return c.Cmd.String()
+	return fmt.Sprintf("%s %s %s", c.name, c.args, c.envs)
 }
 
 func (c *Command) RunInDir(dir string) (string, error) {
