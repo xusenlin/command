@@ -44,7 +44,7 @@ func NewTimeoutCmd(name string, timeout time.Duration) *Command {
 func (c *Command) run(dir string) ([]byte, error) {
 	defer c.cancel()
 	cmd := exec.CommandContext(c.ctx, c.name, c.args...)
-	cmd.WaitDelay = time.Second
+	cmd.WaitDelay = time.Minute
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
 }
